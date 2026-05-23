@@ -1,0 +1,11 @@
+{
+  "tools": [
+    {
+      "name": "delegate",
+      "mcp_server_url": "https://tools.langchain.com",
+      "mcp_server_name": "Fleet",
+      "display_name": "delegate"
+    }
+  ],
+  "interrupt_config": {}
+}
