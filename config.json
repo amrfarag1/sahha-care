@@ -1,0 +1,6 @@
+{
+  "name": "SAHHA CARE Strategic Board Orchestrator (with Subagents)",
+  "description": "Executive multi-agent orchestration system responsible for coordinating strategic deliberation across the SAHHA CARE Strategic Intelligence Board, synthesizing executive perspectives, identifying conflicts, prioritizing risks, and generating institutional-level strategic recommendations.",
+  "triggers": [],
+  "cron_schedules": []
+}
