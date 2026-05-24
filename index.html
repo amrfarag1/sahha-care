@@ -246,6 +246,82 @@
       padding: 4px 0 8px;
     }
 
+
+    /* ── Settings panel ── */
+    .settings-btn {
+      background: #f0fdf8; color: var(--emerald-dk);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 7px 13px; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all .2s; font-family: inherit;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .settings-btn:hover { background: var(--emerald-lt); }
+
+    .settings-panel {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.4); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; animation: fadeIn .2s;
+    }
+    .settings-box {
+      background: var(--surface); border-radius: 20px;
+      padding: 28px 28px 24px; max-width: 420px; width: 94%;
+      box-shadow: 0 24px 64px rgba(0,0,0,.22);
+    }
+    .settings-box h3 {
+      font-size: 16px; font-weight: 700; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px; color: var(--text);
+    }
+    .settings-box h3 i { color: var(--emerald); }
+    .field-label {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      margin-bottom: 5px; letter-spacing: .3px; text-transform: uppercase;
+    }
+    .field-input {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 10px 14px; font-size: 13.5px; font-family: monospace;
+      outline: none; background: var(--bg); color: var(--text);
+      transition: border-color .2s; margin-bottom: 14px;
+      direction: ltr; text-align: left;
+    }
+    .field-input:focus { border-color: var(--emerald); box-shadow: 0 0 0 3px rgba(5,150,105,.12); }
+    .field-hint {
+      font-size: 11.5px; color: var(--text-muted);
+      margin-top: -10px; margin-bottom: 14px; line-height: 1.5;
+    }
+    .test-result {
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; margin-bottom: 14px; display: none;
+      line-height: 1.5;
+    }
+    .test-result.ok   { background: #d1fae5; color: #065f46; border: 1.5px solid #a7f3d0; }
+    .test-result.err  { background: #fef2f2; color: #991b1b; border: 1.5px solid #fecaca; }
+    .test-result.warn { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
+    .settings-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-test {
+      flex:1; padding: 10px; border: 1.5px solid var(--border); border-radius: 10px;
+      background: transparent; cursor: pointer; font-family: inherit;
+      font-size: 13.5px; font-weight: 600; color: var(--emerald-dk);
+      transition: .2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-test:hover { background: var(--emerald-lt); border-color: var(--emerald-mid); }
+    .btn-save {
+      flex:1; padding: 10px; border: none; border-radius: 10px;
+      background: var(--emerald); color: #fff; cursor: pointer;
+      font-family: inherit; font-size: 13.5px; font-weight: 600; transition: .2s;
+    }
+    .btn-save:hover { background: var(--emerald-dk); }
+    .conn-indicator {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 20px; padding: 4px 10px;
+    }
+    .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: #d1d5db; }
+    .conn-dot.ok   { background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; }
+    .conn-dot.err  { background: var(--danger); box-shadow: 0 0 0 2px #fecaca; }
+    .conn-dot.checking { background: #f59e0b; animation: pulse-dot 1s infinite; }
+
     /* ── LTR overrides ── */
     html[dir="ltr"] body { font-family: 'IBM Plex Sans', sans-serif; }
     html[dir="ltr"] .row.user .bubble {
@@ -273,6 +349,9 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="settings-btn" onclick="showSettings()" id="settings-btn-el" title="API Settings">
+        <i class="fas fa-sliders"></i>
+      </button>
       <button class="lang-btn" onclick="toggleLang()" title="Switch language">
         <i class="fas fa-language"></i>
         <span id="lang-label">EN</span>
@@ -316,10 +395,11 @@
 
   <script>
     // ── Config ───────────────────────────────────────────────────────────────────
-    const API_BASE    = "https://sahha-care-backend.onrender.com";
-    const API_PATH    = "/invoke";   // FIX #1 — update to match your actual endpoint
     const API_TIMEOUT = 35_000;
-    const API_URL     = API_BASE + API_PATH;
+    // Editable at runtime via settings panel
+    let API_BASE = localStorage.getItem('sahha_api_base') || "https://sahha-care-backend.onrender.com";
+    let API_PATH = localStorage.getItem('sahha_api_path') || "/invoke";
+    let API_URL  = API_BASE + API_PATH;
 
     // ── State ────────────────────────────────────────────────────────────────────
     let threadId      = crypto.randomUUID();   // FIX #2
@@ -559,7 +639,14 @@
         clearTimeout(timer);
         removeMessage(loadingId);
         const t       = i18n[lang];
-        const errText = err.name === 'AbortError' ? t.timeout : t.connErr(err.message);
+        const isCors  = err.name === 'TypeError' && err.message === 'Failed to fetch';
+        const errText = err.name === 'AbortError'
+          ? t.timeout
+          : isCors
+            ? (lang === 'ar'
+                ? '🔒 تعذّر الاتصال بالخادم (CORS أو الخادم غير متاح).\n\nالحلول المحتملة:\n• تحقق من عنوان الـ API في الإعدادات ⚙️\n• تأكد أن الـ backend يسمح بطلبات CORS\n• إذا كان الخادم على Render، قد يكون في وضع السكون — انتظر 30 ث وأعد المحاولة'
+                : '🔒 Could not reach the server (CORS or server unavailable).\n\nPossible fixes:\n• Check the API URL in Settings ⚙️\n• Ensure your backend allows CORS requests\n• If hosted on Render, the server may be sleeping — wait 30s and retry')
+            : t.connErr(err.message);
         console.error('[SAHHA] Fetch error:', err);
         addMessage('assistant', errText);
       } finally {
@@ -569,6 +656,121 @@
       }
     }
 
+
+    // ── Settings i18n additions ───────────────────────────────────────────────────
+    const settingsI18n = {
+      ar: {
+        panelTitle:    'إعدادات الاتصال',
+        baseLabel:     'عنوان الخادم (Base URL)',
+        pathLabel:     'مسار الـ Endpoint',
+        pathHint:      'LangGraph: <code>/invoke</code> · LangServe: <code>/chain/invoke</code> · LangGraph Cloud: <code>/runs/invoke</code>',
+        testBtn:       'اختبار الاتصال',
+        saveBtn:       'حفظ',
+        testing:       'جارٍ الاختبار...',
+        ok:            (ms) => `✅ الخادم يستجيب (${ms} مللي ثانية)`,
+        corsWarn:      '⚠️ الخادم يعمل لكن CORS غير مفعّل — الطلبات من المتصفح ستُحجب. يجب إضافة CORS headers في الـ backend.',
+        netErr:        (m)  => `❌ تعذّر الوصول للخادم: ${m}`,
+        saved:         'تم الحفظ ✓',
+        connOk:        'متصل',
+        connErr:       'غير متصل',
+        connChecking:  'يتحقق...',
+      },
+      en: {
+        panelTitle:    'Connection Settings',
+        baseLabel:     'Server Base URL',
+        pathLabel:     'Endpoint Path',
+        pathHint:      'LangGraph: <code>/invoke</code> · LangServe: <code>/chain/invoke</code> · LangGraph Cloud: <code>/runs/invoke</code>',
+        testBtn:       'Test Connection',
+        saveBtn:       'Save',
+        testing:       'Testing...',
+        ok:            (ms) => `✅ Server responded in ${ms}ms`,
+        corsWarn:      '⚠️ Server reachable but CORS is not enabled — browser requests will be blocked. Add CORS headers to your backend.',
+        netErr:        (m)  => `❌ Cannot reach server: ${m}`,
+        saved:         'Saved ✓',
+        connOk:        'Connected',
+        connErr:       'Disconnected',
+        connChecking:  'Checking...',
+      }
+    };
+
+    // ── Settings helpers ──────────────────────────────────────────────────────────
+    function showSettings() {
+      const t = settingsI18n[lang];
+      document.getElementById('sett-base').value = API_BASE;
+      document.getElementById('sett-path').value = API_PATH;
+      document.getElementById('sett-title').textContent      = t.panelTitle;
+      document.getElementById('sett-base-label').textContent = t.baseLabel;
+      document.getElementById('sett-path-label').textContent = t.pathLabel;
+      document.getElementById('sett-path-hint').innerHTML    = t.pathHint;
+      document.getElementById('btn-test-label').textContent  = t.testBtn;
+      document.getElementById('btn-save-label').textContent  = t.saveBtn;
+      document.getElementById('test-result').style.display   = 'none';
+      document.getElementById('settings-panel').style.display = 'flex';
+    }
+    function closeSettingsOnBg(e) {
+      if (e.target === document.getElementById('settings-panel'))
+        document.getElementById('settings-panel').style.display = 'none';
+    }
+
+    async function testConnection() {
+      const t    = settingsI18n[lang];
+      const base = document.getElementById('sett-base').value.trim().replace(/\/+$/,'');
+      const path = document.getElementById('sett-path').value.trim();
+      const url  = base + path;
+      const res  = document.getElementById('test-result');
+      const icon = document.getElementById('test-icon');
+
+      res.className = 'test-result warn';
+      res.style.display = 'block';
+      res.textContent = t.testing;
+      icon.className = 'fas fa-spinner fa-spin';
+
+      const t0 = Date.now();
+      try {
+        // OPTIONS preflight check first (HEAD request to detect CORS)
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: { messages: [{ role:'user', content:'ping' }] }, config:{ configurable:{ thread_id:'test' } } }),
+          signal: AbortSignal.timeout(8000)
+        });
+        const ms = Date.now() - t0;
+        if (r.ok || r.status === 422 || r.status === 405) {
+          // 422 Unprocessable = server works, format mismatch — still a win
+          res.className = 'test-result ok';
+          res.textContent = t.ok(ms);
+        } else {
+          res.className = 'test-result warn';
+          res.textContent = t.corsWarn + ' (HTTP ' + r.status + ')';
+        }
+      } catch(err) {
+        const isCors = err.message === 'Failed to fetch' || err.name === 'TypeError';
+        res.className = 'test-result ' + (isCors ? 'warn' : 'err');
+        res.innerHTML = isCors ? t.corsWarn : t.netErr(err.message);
+      }
+      icon.className = 'fas fa-plug';
+    }
+
+    function saveSettings() {
+      const t    = settingsI18n[lang];
+      const base = document.getElementById('sett-base').value.trim().replace(/\/+$/,'');
+      const path = document.getElementById('sett-path').value.trim();
+      API_BASE = base;
+      API_PATH = path;
+      API_URL  = API_BASE + API_PATH;
+      localStorage.setItem('sahha_api_base', API_BASE);
+      localStorage.setItem('sahha_api_path', API_PATH);
+      const btn = document.getElementById('btn-save-label');
+      btn.textContent = t.saved;
+      setTimeout(() => {
+        btn.textContent = t.saveBtn;
+        document.getElementById('settings-panel').style.display = 'none';
+      }, 1200);
+    }
+
+    // Also update settings i18n when language toggles
+    const _origApplyLang = applyLang;
+
     // ── Init ──────────────────────────────────────────────────────────────────────
     window.onload = () => {
       applyLang(lang);
@@ -576,5 +778,41 @@
       document.getElementById('user-input').focus();
     };
   </script>
+
+  <!-- Settings panel -->
+  <div id="settings-panel" class="settings-panel" style="display:none" onclick="closeSettingsOnBg(event)">
+    <div class="settings-box">
+      <h3><i class="fas fa-sliders"></i> <span id="sett-title">إعدادات الاتصال</span></h3>
+
+      <div class="field-label" id="sett-base-label">عنوان الخادم (Base URL)</div>
+      <input class="field-input" id="sett-base" type="text"
+             value="https://sahha-care-backend.onrender.com"
+             placeholder="https://your-backend.onrender.com">
+
+      <div class="field-label" id="sett-path-label">مسار الـ Endpoint</div>
+      <input class="field-input" id="sett-path" type="text"
+             value="/invoke"
+             placeholder="/invoke  or  /runs/invoke  or  /chat">
+      <div class="field-hint" id="sett-path-hint">
+        LangGraph: <code>/invoke</code> &nbsp;·&nbsp;
+        LangServe: <code>/chain/invoke</code> &nbsp;·&nbsp;
+        LangGraph Cloud: <code>/runs/invoke</code>
+      </div>
+
+      <div id="test-result" class="test-result"></div>
+
+      <div class="settings-actions">
+        <button class="btn-test" onclick="testConnection()">
+          <i class="fas fa-plug" id="test-icon"></i>
+          <span id="btn-test-label">اختبار الاتصال</span>
+        </button>
+        <button class="btn-save" onclick="saveSettings()">
+          <i class="fas fa-check"></i>
+          <span id="btn-save-label">حفظ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
