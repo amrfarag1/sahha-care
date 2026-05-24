@@ -1,16 +1,23 @@
-# Dockerfile - Sahha Care AI Agent
+# Dockerfile - Sahha Care AI Agent (محسن)
 FROM python:3.11-slim
+
+# إنشاء مستخدم غير root للأمان
+RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-# نسخ كل الملفات من الـ root
+# نسخ الملفات
 COPY . .
 
 # تثبيت المتطلبات
 RUN pip install --no-cache-dir -r requirements.txt
 
-# فتح المنفذ
+# تغيير ملكية الملفات للمستخدم الجديد
+RUN chown -R appuser:appuser /app
+
+# التبديل إلى المستخدم غير الـ root
+USER appuser
+
 EXPOSE 8000
 
-# تشغيل التطبيق
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
