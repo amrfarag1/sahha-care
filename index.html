@@ -1,129 +1,100 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>سحة كير - الوكيل الذكي</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-  <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; }
-    .chat-container { max-width: 800px; margin: 0 auto; }
-    .message { max-width: 80%; }
-  </style>
-</head>
-<body class="bg-gray-50 min-h-screen">
+<script>
+  const API_URL = "https://sahha-care-backend.onrender.com/agent";
 
-  <div class="chat-container mx-auto p-4 h-screen flex flex-col">
-    
-    <!-- Header -->
-    <div class="bg-white shadow-sm border-b p-4 rounded-t-2xl">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl">
-          <i class="fas fa-heart"></i>
-        </div>
-        <div>
-          <h1 class="text-2xl font-bold text-gray-800">سحة كير</h1>
-          <p class="text-sm text-emerald-600">وكيلك الطبي الذكي</p>
-        </div>
-      </div>
-    </div>
+  let threadId = "thread_" + Math.random().toString(36).substring(7);
 
-    <!-- Chat Messages -->
-    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-6 bg-white rounded-b-2xl shadow-sm">
-      <!-- الرسائل ستظهر هنا -->
-    </div>
+  function addMessage(role, content, isLoading = false) {
+    const chat = document.getElementById("chat-messages");
+    const id = "msg-" + Date.now();
 
-    <!-- Input Area -->
-    <div class="bg-white border-t p-4 rounded-b-2xl">
-      <div class="flex gap-3">
-        <input 
-          id="user-input" 
-          type="text" 
-          placeholder="اكتب رسالتك هنا..."
-          class="flex-1 border border-gray-300 rounded-2xl px-6 py-4 focus:outline-none focus:border-emerald-500"
-          onkeypress="if(event.key === 'Enter') sendMessage()">
-        <button 
-          onclick="sendMessage()"
-          class="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl transition">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-      </div>
-    </div>
-  </div>
+    const div = document.createElement("div");
+    div.id = id;
+    div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message`;
 
-  <script>
-    const API_URL = "https://sahha-care-backend.onrender.com"; //
-    
-    let threadId = "thread_" + Math.random().toString(36).substring(7);
-
-    async function sendMessage() {
-      const input = document.getElementById("user-input");
-      const message = input.value.trim();
-      if (!message) return;
-
-      addMessage("user", message);
-      input.value = "";
-
-      // إظهار "يكتب..."
-      const loadingId = addMessage("assistant", "يكتب...", true);
-
-      try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            input: {
-              messages: [{ role: "user", content: message }]
-            },
-            config: { configurable: { thread_id: threadId } }
-          })
-        });
-
-        const data = await response.json();
-        const answer = data.output?.messages?.[0]?.content || 
-                      data.messages?.[data.messages.length-1]?.content || 
-                      "لم أتمكن من الحصول على رد.";
-
-        // حذف رسالة "يكتب..."
-        removeMessage(loadingId);
-        addMessage("assistant", answer);
-      } catch (error) {
-        removeMessage(loadingId);
-        addMessage("assistant", "حدث خطأ في الاتصال بالوكيل. تأكد من تشغيل الـ backend.");
-        console.error(error);
-      }
-    }
-
-    function addMessage(role, content, isLoading = false) {
-      const chat = document.getElementById("chat-messages");
-      const id = "msg-" + Date.now();
-      
-      const div = document.createElement("div");
-      div.id = id;
-      div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message`;
-      
+    if (role === 'user') {
       div.innerHTML = `
-        <div class="${role === 'user' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-800'} 
-                    px-5 py-3 rounded-3xl ${role === 'user' ? 'rounded-br-none' : 'rounded-bl-none'}">
-          ${isLoading ? `<span class="animate-pulse">${content}</span>` : content}
+        <div class="max-w-[80%] bg-emerald-600 text-white px-6 py-4 rounded-3xl rounded-br-none">
+          ${content}
         </div>
       `;
-      
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-      return id;
+    } else {
+      div.innerHTML = `
+        <div class="max-w-[80%] bg-gray-100 text-gray-800 px-6 py-4 rounded-3xl rounded-bl-none">
+          ${isLoading ? `<span class="typing">يكتب<span class="animate-pulse">...</span></span>` : content}
+        </div>
+      `;
     }
 
-    function removeMessage(id) {
-      const msg = document.getElementById(id);
-      if (msg) msg.remove();
-    }
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return id;
+  }
 
-    // رسالة ترحيبية
-    window.onload = () => {
-      addMessage("assistant", "مرحباً! أنا وكيل سحة كير. كيف يمكنني مساعدتك اليوم؟");
-    };
-  </script>
-</body>
-</html>
+  async function sendMessage() {
+    const input = document.getElementById("user-input");
+    const message = input.value.trim();
+    if (!message) return;
+
+    addMessage("user", message);
+    input.value = "";
+
+    const loadingId = addMessage("assistant", "", true);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          input: {
+            messages: [
+              {
+                role: "user",
+                content: message
+              }
+            ]
+          },
+          config: {
+            configurable: {
+              thread_id: threadId
+            }
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      const answer =
+        data.output?.messages?.[data.output.messages.length - 1]?.content ||
+        data.messages?.[data.messages.length - 1]?.content ||
+        "عذراً، لم أتمكن من فهم طلبك.";
+
+      document.getElementById(loadingId).remove();
+      addMessage("assistant", answer);
+
+    } catch (error) {
+      document.getElementById(loadingId).remove();
+      addMessage("assistant", "حدث خطأ في الاتصال بالخادم.");
+      console.error(error);
+    }
+  }
+
+  function clearChat() {
+    if (confirm("هل تريد مسح المحادثة؟")) {
+      document.getElementById("chat-messages").innerHTML = "";
+      addMessage(
+        "assistant",
+        "مرحباً! 👋 أنا وكيل صحة كير الذكي. كيف يمكنني مساعدتك اليوم؟"
+      );
+      threadId = "thread_" + Math.random().toString(36).substring(7);
+    }
+  }
+
+  window.onload = () => {
+    addMessage(
+      "assistant",
+      "مرحباً! 👋\nأنا وكيل صحة كير الذكي.\nكيف يمكنني مساعدتك اليوم؟"
+    );
+  };
+</script>
